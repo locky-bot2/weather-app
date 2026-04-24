@@ -3,6 +3,7 @@ import SearchBar from './components/SearchBar';
 import CurrentWeather from './components/CurrentWeather';
 import ForecastGrid from './components/ForecastGrid';
 import Footer from './components/Footer';
+import VenueSuggestions from './components/VenueSuggestions';
 import { useWeather } from './hooks/useWeather';
 import { getWeatherInfo } from './utils/weatherCodes';
 import type { GeoResult } from './types/weather';
@@ -67,10 +68,17 @@ export default function App() {
           )}
 
           {!loading && !error && weather && selectedCity && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <CurrentWeather current={weather.current} city={selectedCity} />
-              <ForecastGrid daily={weather.daily} />
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <CurrentWeather current={weather.current} city={selectedCity} />
+                <ForecastGrid daily={weather.daily} />
+              </div>
+              <VenueSuggestions
+                lat={selectedCity.latitude}
+                lon={selectedCity.longitude}
+                weatherCode={weather.current.weather_code}
+              />
+            </>
           )}
 
           {!loading && !error && !weather && (
