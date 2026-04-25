@@ -7,6 +7,12 @@ export interface Venue {
   address?: string;
   lat: number;
   lon: number;
+  phone?: string;
+  website?: string;
+  openingHours?: string;
+  cuisine?: string;
+  description?: string;
+  neighborhood?: string;
 }
 
 export interface VenueSuggestionState {

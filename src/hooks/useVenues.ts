@@ -49,15 +49,22 @@ export function useVenues(
         .filter((el) => el.tags?.name)
         .map((el) => {
           const tag = findTagForElement(tags, el.tags);
+          const streetParts = [el.tags['addr:street'], el.tags['addr:housenumber'], el.tags['addr:city']].filter(Boolean);
           return {
             id: el.id,
             name: el.tags.name,
             category: tag?.label ?? 'Place',
             categoryEmoji: tag?.emoji ?? '📍',
             distance: haversineDistance(lat, lon, el.lat, el.lon),
-            address: el.tags['addr:street'] || el.tags['addr:city'],
+            address: streetParts.length > 0 ? streetParts.join(', ') : undefined,
             lat: el.lat,
             lon: el.lon,
+            phone: el.tags['phone'] || el.tags['contact:phone'],
+            website: el.tags['website'] || el.tags['contact:website'],
+            openingHours: el.tags['opening_hours'],
+            cuisine: el.tags['cuisine'],
+            description: el.tags['description'],
+            neighborhood: el.tags['addr:suburb'] || el.tags['addr:neighbourhood'],
           };
         })
         .sort((a, b) => a.distance - b.distance)

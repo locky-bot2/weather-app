@@ -91,7 +91,7 @@ export function buildOverpassQuery(
   const tagQueries = tags
     .map((t) => `node["${t.key}"="${t.value}"](around:${radius},${lat},${lon});`)
     .join('\n');
-  return `[out:json][timeout:10];(${tagQueries});out body:${limit};`;
+  return `[out:json][timeout:10];(${tagQueries});out body ${limit};`;
 }
 
 /** Haversine distance in meters between two lat/lon points */
@@ -109,6 +109,120 @@ export function haversineDistance(
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Human-friendly label mapping for OSM amenity/tourism/leisure values */
+export function getVenueTypeLabel(
+  key: string,
+  value: string,
+  cuisine?: string
+): string {
+  const labels: Record<string, Record<string, string>> = {
+    amenity: {
+      restaurant: cuisine ? `Restaurant · ${cuisine}` : 'Restaurant',
+      cafe: 'Coffee Shop',
+      cinema: 'Cinema',
+      library: 'Library',
+      marketplace: 'Marketplace',
+      fitness_centre: 'Fitness Centre',
+      bar: 'Bar',
+      pub: 'Pub',
+      fast_food: 'Fast Food',
+      theatre: 'Theatre',
+      nightclub: 'Nightclub',
+      bank: 'Bank',
+      pharmacy: 'Pharmacy',
+      hospital: 'Hospital',
+      parking: 'Parking',
+      fuel: 'Gas Station',
+      place_of_worship: 'Place of Worship',
+    },
+    tourism: {
+      museum: 'Museum',
+      viewpoint: 'Viewpoint',
+      hotel: 'Hotel',
+      hostel: 'Hostel',
+      attraction: 'Attraction',
+      artwork: 'Artwork',
+      gallery: 'Gallery',
+    },
+    leisure: {
+      park: 'Park',
+      beach_resort: 'Beach Resort',
+      fitness_centre: 'Fitness Centre',
+      playground: 'Playground',
+      garden: 'Garden',
+      sports_centre: 'Sports Centre',
+      swimming_pool: 'Swimming Pool',
+    },
+    shop: {
+      mall: 'Mall',
+      books: 'Bookstore',
+      supermarket: 'Supermarket',
+      bakery: 'Bakery',
+      clothes: 'Clothing Store',
+    },
+  };
+
+  return labels[key]?.[value] ?? (cuisine ? `${value} · ${cuisine}` : value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, ' '));
+}
+
+/** Check if venue is currently open based on OSM opening_hours string */
+export function isOpenNow(openingHours: string): boolean | null {
+  if (!openingHours) return null;
+
+  // Simple check for common formats like "Mo-Fr 09:00-18:00; Sa 10:00-14:00"
+  const now = new Date();
+  const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  const today = days[now.getDay()];
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const currentMinutes = currentHour * 60 + currentMinute;
+
+  // Check for 24/7
+  if (openingHours.toLowerCase().includes('24/7')) return true;
+
+  // Split by semicolons to get individual day ranges
+  const segments = openingHours.split(';').map((s) => s.trim());
+
+  for (const segment of segments) {
+    // Match pattern like "Mo-Fr 09:00-18:00" or "Sa 10:00-14:00"
+    const dayMatch = segment.match(/^([A-Za-z]{2})(?:-([A-Za-z]{2}))?/);
+    if (!dayMatch) continue;
+
+    const startDay = dayMatch[1];
+    const endDay = dayMatch[2] || startDay;
+
+    // Check if today is in range
+    const startIndex = days.indexOf(startDay);
+    const endIndex = days.indexOf(endDay);
+    const todayIndex = days.indexOf(today);
+
+    if (startIndex === -1 || endIndex === -1 || todayIndex === -1) continue;
+
+    let dayInRange = false;
+    if (startIndex <= endIndex) {
+      dayInRange = todayIndex >= startIndex && todayIndex <= endIndex;
+    } else {
+      // Wraps around (e.g., Fr-Mo)
+      dayInRange = todayIndex >= startIndex || todayIndex <= endIndex;
+    }
+
+    if (!dayInRange) continue;
+
+    // Extract time ranges
+    const timeMatches = segment.matchAll(/(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})/g);
+    for (const tm of timeMatches) {
+      const openMinutes = parseInt(tm[1]) * 60 + parseInt(tm[2]);
+      const closeMinutes = parseInt(tm[3]) * 60 + parseInt(tm[4]);
+      if (currentMinutes >= openMinutes && currentMinutes <= closeMinutes) {
+        return true;
+      }
+    }
+  }
+
+  // If we found matching day segments but no matching time, it's closed
+  return false;
 }
 
 /** Find the matching OsmTag for a given OSM element key/value */

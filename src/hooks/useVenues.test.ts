@@ -57,6 +57,109 @@ describe('useVenues', () => {
     );
   });
 
+  it('parses additional OSM tags (phone, website, openingHours, cuisine)', async () => {
+    const overpassResponse = {
+      elements: [
+        {
+          id: 789,
+          lat: 40.701,
+          lon: -73.99,
+          tags: {
+            name: 'Italian Place',
+            amenity: 'restaurant',
+            phone: '02-2881-2661',
+            website: 'https://example.com',
+            opening_hours: 'Mo-Fr 09:00-18:00',
+            cuisine: 'italian',
+            description: 'Best pasta in town',
+            'addr:suburb': 'Downtown',
+          },
+        },
+      ],
+    };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(overpassResponse),
+    });
+
+    const { result } = renderHook(() => useVenues(40.7, -74.0, 0));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    const venue = result.current.venues[0];
+    expect(venue.phone).toBe('02-2881-2661');
+    expect(venue.website).toBe('https://example.com');
+    expect(venue.openingHours).toBe('Mo-Fr 09:00-18:00');
+    expect(venue.cuisine).toBe('italian');
+    expect(venue.description).toBe('Best pasta in town');
+    expect(venue.neighborhood).toBe('Downtown');
+  });
+
+  it('uses contact:phone and contact:website as fallback', async () => {
+    const overpassResponse = {
+      elements: [
+        {
+          id: 999,
+          lat: 40.701,
+          lon: -73.99,
+          tags: {
+            name: 'Fallback Place',
+            amenity: 'cafe',
+            'contact:phone': '+1-555-0123',
+            'contact:website': 'https://fallback.com',
+          },
+        },
+      ],
+    };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(overpassResponse),
+    });
+
+    const { result } = renderHook(() => useVenues(40.7, -74.0, 0));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    const venue = result.current.venues[0];
+    expect(venue.phone).toBe('+1-555-0123');
+    expect(venue.website).toBe('https://fallback.com');
+  });
+
+  it('builds address from addr:housenumber, addr:street, addr:city', async () => {
+    const overpassResponse = {
+      elements: [
+        {
+          id: 111,
+          lat: 40.701,
+          lon: -73.99,
+          tags: {
+            name: 'Address Place',
+            amenity: 'cafe',
+            'addr:housenumber': '42',
+            'addr:street': 'Main St',
+            'addr:city': 'Springfield',
+          },
+        },
+      ],
+    };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(overpassResponse),
+    });
+
+    const { result } = renderHook(() => useVenues(40.7, -74.0, 0));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.venues[0].address).toBe('Main St, 42, Springfield');
+  });
+
   it('sends POST request to Overpass API with correct body', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
