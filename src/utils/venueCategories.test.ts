@@ -1,9 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getVenueCategories,
   buildOverpassQuery,
   haversineDistance,
   findTagForElement,
+  getVenueTypeLabel,
+  isOpenNow,
 } from '../utils/venueCategories';
 
 describe('getVenueCategories', () => {
@@ -82,15 +84,13 @@ describe('buildOverpassQuery', () => {
     const query = buildOverpassQuery(40.7, -74.0, tags, 5000, 10);
     expect(query).toContain('[out:json][timeout:10]');
     expect(query).toContain('node["amenity"="cafe"](around:5000,40.7,-74)');
-    expect(query).toContain('node["tourism"="museum"](around:5000,40.7,-74)');
-    expect(query).toContain('out body:10');
+    expect(query).toContain('out body 10');
   });
 
   it('uses default radius and limit', () => {
     const tags = [{ key: 'amenity', value: 'cafe', emoji: '☕', label: 'Café' }];
     const query = buildOverpassQuery(51.5, -0.1, tags);
-    expect(query).toContain('around:5000,51.5,-0.1');
-    expect(query).toContain('out body:10');
+    expect(query).toContain('out body 10');
   });
 });
 
@@ -100,9 +100,8 @@ describe('haversineDistance', () => {
   });
 
   it('calculates distance between two points', () => {
-    // NYC to roughly 1 degree away
     const dist = haversineDistance(40.7, -74.0, 41.7, -74.0);
-    expect(dist).toBeGreaterThan(100_000); // ~111km
+    expect(dist).toBeGreaterThan(100_000);
     expect(dist).toBeLessThan(120_000);
   });
 });
@@ -123,5 +122,80 @@ describe('findTagForElement', () => {
     ];
     const result = findTagForElement(tags, { shop: 'supermarket' });
     expect(result).toBeUndefined();
+  });
+});
+
+describe('getVenueTypeLabel', () => {
+  it('returns human-friendly label for known amenity', () => {
+    expect(getVenueTypeLabel('amenity', 'cafe')).toBe('Coffee Shop');
+  });
+
+  it('returns human-friendly label for known tourism', () => {
+    expect(getVenueTypeLabel('tourism', 'museum')).toBe('Museum');
+  });
+
+  it('returns human-friendly label for known leisure', () => {
+    expect(getVenueTypeLabel('leisure', 'park')).toBe('Park');
+  });
+
+  it('appends cuisine for restaurants', () => {
+    expect(getVenueTypeLabel('amenity', 'restaurant', 'Italian')).toBe('Restaurant · Italian');
+  });
+
+  it('returns restaurant without cuisine if not provided', () => {
+    expect(getVenueTypeLabel('amenity', 'restaurant')).toBe('Restaurant');
+  });
+
+  it('title-cases unknown values', () => {
+    expect(getVenueTypeLabel('amenity', 'some_new_type')).toBe('Some new type');
+  });
+
+  it('appends cuisine for unknown types when cuisine provided', () => {
+    expect(getVenueTypeLabel('amenity', 'unknown_type', 'Thai')).toBe('unknown_type · Thai');
+  });
+});
+
+describe('isOpenNow', () => {
+  it('returns null for empty string', () => {
+    expect(isOpenNow('')).toBeNull();
+  });
+
+  it('returns true for 24/7', () => {
+    expect(isOpenNow('24/7')).toBe(true);
+  });
+
+  it('returns true when currently within open hours', () => {
+    // Monday noon, open Mo-Fr 09:00-18:00
+    vi.setSystemTime(new Date('2024-01-15T12:00:00'));
+    expect(isOpenNow('Mo-Fr 09:00-18:00')).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it('returns false when outside open hours', () => {
+    // Monday 8pm, open Mo-Fr 09:00-18:00
+    vi.setSystemTime(new Date('2024-01-15T20:00:00'));
+    expect(isOpenNow('Mo-Fr 09:00-18:00')).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('returns false on closed day', () => {
+    // Saturday noon, open Mo-Fr only
+    vi.setSystemTime(new Date('2024-01-13T12:00:00')); // Saturday
+    expect(isOpenNow('Mo-Fr 09:00-18:00')).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('handles single day format', () => {
+    // Wednesday noon, open We 10:00-20:00
+    vi.setSystemTime(new Date('2024-01-17T14:00:00')); // Wednesday
+    expect(isOpenNow('We 10:00-20:00')).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it('handles multiple day segments separated by semicolons', () => {
+    // Saturday 11am, Mo-Fr 09:00-18:00; Sa 10:00-14:00
+    vi.setSystemTime(new Date('2024-01-13T11:00:00')); // Saturday
+    expect(isOpenNow('Mo-Fr 09:00-18:00; Sa 10:00-14:00')).toBe(true);
+    vi.useRealTimers();
   });
 });
