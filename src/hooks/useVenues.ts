@@ -1,8 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Venue, VenueSuggestionState } from '../types/venue';
-import { getVenueCategories } from '../utils/venueCategories';
+import {
+  getVenueCategories,
+  buildOverpassQuery,
+  haversineDistance,
+  findTagForElement,
+} from '../utils/venueCategories';
 
-const FOURSQUARE_BASE = 'https://api.foursquare.com/v3/places/search';
+const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+
+interface OverpassElement {
+  id: number;
+  lat: number;
+  lon: number;
+  tags: Record<string, string>;
+}
 
 export function useVenues(
   lat: number | null,
@@ -16,33 +28,42 @@ export function useVenues(
   const fetchVenues = useCallback(async () => {
     if (lat === null || lon === null || weatherCode === null) return;
 
-    const apiKey = import.meta.env.VITE_FOURSQUARE_API_KEY;
-    if (!apiKey) return; // Gracefully hide section if no key
-
-    const { categoryIds } = getVenueCategories(weatherCode);
+    const { tags } = getVenueCategories(weatherCode);
+    const query = buildOverpassQuery(lat, lon, tags);
     setLoading(true);
     setError(null);
 
     try {
-      const params = new URLSearchParams({
-        ll: `${lat},${lon}`,
-        radius: '5000',
-        categories: categoryIds,
-        limit: '6',
-        sort: 'DISTANCE',
+      const res = await fetch(OVERPASS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`,
       });
 
-      const res = await fetch(`${FOURSQUARE_BASE}?${params}`, {
-        headers: {
-          Authorization: apiKey,
-          Accept: 'application/json',
-        },
-      });
-
-      if (!res.ok) throw new Error(`Foursquare API error: ${res.status}`);
+      if (!res.ok) throw new Error(`Overpass API error: ${res.status}`);
 
       const data = await res.json();
-      setVenues(data.results ?? []);
+      const elements: OverpassElement[] = data.elements ?? [];
+
+      const mapped: Venue[] = elements
+        .filter((el) => el.tags?.name)
+        .map((el) => {
+          const tag = findTagForElement(tags, el.tags);
+          return {
+            id: el.id,
+            name: el.tags.name,
+            category: tag?.label ?? 'Place',
+            categoryEmoji: tag?.emoji ?? '📍',
+            distance: haversineDistance(lat, lon, el.lat, el.lon),
+            address: el.tags['addr:street'] || el.tags['addr:city'],
+            lat: el.lat,
+            lon: el.lon,
+          };
+        })
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 6);
+
+      setVenues(mapped);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch venues');
       setVenues([]);

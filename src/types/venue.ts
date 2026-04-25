@@ -1,27 +1,12 @@
-export interface VenueCategory {
+export interface Venue {
   id: number;
   name: string;
-  icon?: {
-    prefix: string;
-    suffix: string;
-  };
-}
-
-export interface Venue {
-  fsq_id: string;
-  name: string;
-  categories: VenueCategory[];
-  distance: number; // meters
-  location: {
-    formatted_address: string;
-  };
-  rating?: number;
-  geocodes?: {
-    main?: {
-      latitude: number;
-      longitude: number;
-    };
-  };
+  category: string;
+  categoryEmoji: string;
+  distance: number; // meters (haversine from user lat/lon)
+  address?: string;
+  lat: number;
+  lon: number;
 }
 
 export interface VenueSuggestionState {
