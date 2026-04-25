@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import VenueSuggestions from '../components/VenueSuggestions';
+import VenueSuggestions from './VenueSuggestions';
 
 // Mock the useVenues hook
 vi.mock('../hooks/useVenues', () => ({
@@ -33,19 +33,23 @@ describe('VenueSuggestions', () => {
     mockedUseVenues.mockReturnValue({
       venues: [
         {
-          fsq_id: '1',
+          id: 1,
           name: 'Central Park',
-          categories: [{ id: 16032, name: 'Park' }],
+          category: 'Park',
+          categoryEmoji: '🌳',
           distance: 500,
-          location: { formatted_address: 'New York, NY' },
-          rating: 9.2,
+          address: '5th Ave',
+          lat: 40.785,
+          lon: -73.968,
         },
         {
-          fsq_id: '2',
+          id: 2,
           name: 'Museum of Art',
-          categories: [{ id: 10027, name: 'Museum' }],
+          category: 'Museum',
+          categoryEmoji: '🏛️',
           distance: 1200,
-          location: { formatted_address: '5th Ave, NY' },
+          lat: 40.78,
+          lon: -73.96,
         },
       ],
       loading: false,
@@ -54,12 +58,31 @@ describe('VenueSuggestions', () => {
     render(<VenueSuggestions lat={40.7} lon={-74} weatherCode={0} />);
     expect(screen.getByText('Central Park')).toBeInTheDocument();
     expect(screen.getByText('Museum of Art')).toBeInTheDocument();
-    expect(screen.getByText('9.2')).toBeInTheDocument();
   });
 
   it('shows weather-appropriate title', () => {
     mockedUseVenues.mockReturnValue({ venues: [], loading: true, error: null });
     render(<VenueSuggestions lat={40.7} lon={-74} weatherCode={61} />);
     expect(screen.getByText(/rainy day/i)).toBeInTheDocument();
+  });
+
+  it('renders distance in km', () => {
+    mockedUseVenues.mockReturnValue({
+      venues: [
+        {
+          id: 1,
+          name: 'Test Place',
+          category: 'Café',
+          categoryEmoji: '☕',
+          distance: 1500,
+          lat: 40.71,
+          lon: -73.99,
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+    render(<VenueSuggestions lat={40.7} lon={-74} weatherCode={0} />);
+    expect(screen.getByText('1.5 km')).toBeInTheDocument();
   });
 });
