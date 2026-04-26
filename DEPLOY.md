@@ -1,5 +1,12 @@
 # Deploying Weather App to GCP Cloud Run
 
+## Recent Improvements
+
+- **Dockerfile**: Added non-root user (`appuser`) for security, `--ignore-scripts` for faster ci
+- **nginx.conf**: Added security headers (X-Frame-Options, CSP, X-Content-Type-Options, Referrer-Policy), hidden file denial, gzip min length
+- **GitHub Actions**: Added `.github/workflows/deploy.yml` for CI/CD on push to main
+- **Terraform**: Added `terraform/` for IaC-managed GCP resources
+
 ## Prerequisites
 
 - `gcloud` CLI installed and authenticated
@@ -226,3 +233,78 @@ gcloud run services describe weather-app \
 ```
 
 Open the URL and confirm the weather app loads.
+
+---
+
+## 9. GitHub Actions CI/CD
+
+A GitHub Actions workflow (`.github/workflows/deploy.yml`) handles automated build, test, and deploy on push to `main`.
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `GCP_PROJECT_ID` | Your GCP project ID |
+| `WIF_PROVIDER` | Workload Identity Federation provider (e.g., `projects/123/locations/global/workloadIdentityPools/my-pool/providers/my-provider`) |
+| `WIF_SERVICE_ACCOUNT` | Service account email for WIF |
+
+### Setup Workload Identity Federation (recommended over service account keys)
+
+```bash
+# Create workload identity pool
+gcloud iam workload-identity-pools create github-pool \
+  --location=global \
+  --display-name="GitHub Actions Pool"
+
+# Create provider
+gcloud iam workload-identity-pools providers create-oidc github-provider \
+  --location=global \
+  --workload-identity-pool=github-pool \
+  --display-name="GitHub Actions Provider" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --issuer-uri="https://token.actions.githubusercontent.com"
+
+# Bind to service account
+gcloud iam service-accounts add-iam-policy-binding YOUR_SA@YOUR_PROJECT.iam.gserviceaccount.com \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUM/locations/global/workloadIdentityPools/github-pool/attribute.repository/locky-bot2/weather-app"
+```
+
+---
+
+## 10. Terraform (Infrastructure as Code)
+
+Manage GCP infrastructure declaratively with Terraform:
+
+```bash
+cd terraform/
+
+# Copy and edit variables
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your project ID and image
+
+# Create the GCS backend bucket (one-time)
+gsutil mb -l us-central1 gs://weather-app-tfstate
+
+# Initialize
+terraform init
+
+# Plan
+terraform plan
+
+# Apply
+terraform apply
+```
+
+### What Terraform manages
+
+- Artifact Registry repository
+- Cloud Run service (with scaling, resources, port config)
+- IAM policy for public access
+- Required GCP API enablement
+
+### Update the image after a new build
+
+```bash
+terraform apply -var="image=us-central1-docker.pkg.dev/PROJECT_ID/weather-app/weather-app:NEW_SHA"
+```

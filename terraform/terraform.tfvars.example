@@ -1,0 +1,3 @@
+project_id = "your-project-id"
+region     = "us-central1"
+image      = "us-central1-docker.pkg.dev/your-project-id/weather-app/weather-app:latest"
