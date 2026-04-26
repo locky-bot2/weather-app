@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import SearchBar from './components/SearchBar';
 import CurrentWeather from './components/CurrentWeather';
 import ForecastGrid from './components/ForecastGrid';
+import ForecastToggle from './components/ForecastToggle';
+import HourlyForecast from './components/HourlyForecast';
 import Footer from './components/Footer';
 import VenueSuggestions from './components/VenueSuggestions';
 import { useWeather } from './hooks/useWeather';
@@ -12,6 +14,7 @@ export default function App() {
   const { weather, loading, error, selectedCity, loadWeather } = useWeather();
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [bgGradient, setBgGradient] = useState('from-slate-700 via-slate-800 to-indigo-900');
+  const [forecastMode, setForecastMode] = useState<'daily' | 'hourly'>('daily');
 
   useEffect(() => {
     const saved = localStorage.getItem('lastCity');
@@ -69,10 +72,20 @@ export default function App() {
 
           {!loading && !error && weather && selectedCity && (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <CurrentWeather current={weather.current} city={selectedCity} />
-                <ForecastGrid daily={weather.daily} />
+              <div className="flex justify-center mb-5">
+                <ForecastToggle mode={forecastMode} onChange={setForecastMode} />
               </div>
+              {forecastMode === 'daily' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <CurrentWeather current={weather.current} city={selectedCity} />
+                  <ForecastGrid daily={weather.daily} />
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <CurrentWeather current={weather.current} city={selectedCity} />
+                  {weather.hourly && <HourlyForecast hourly={weather.hourly} />}
+                </div>
+              )}
               <VenueSuggestions
                 lat={selectedCity.latitude}
                 lon={selectedCity.longitude}
