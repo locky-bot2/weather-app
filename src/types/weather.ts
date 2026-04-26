@@ -22,7 +22,18 @@ export interface DailyForecast {
   temperature_2m_min: number[];
 }
 
+export interface HourlyData {
+  time: string[];
+  temperature_2m: number[];
+  apparent_temperature: number[];
+  precipitation_probability: number[];
+  weather_code: number[];
+  wind_speed_10m: number[];
+  relative_humidity_2m: number[];
+}
+
 export interface WeatherResponse {
   current: CurrentWeatherData;
   daily: DailyForecast;
+  hourly?: HourlyData;
 }
